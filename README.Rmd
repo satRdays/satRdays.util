@@ -1,11 +1,7 @@
 # 
 
-The goal of  is to ...
+The goal of this package is to hold tools and aid automation fo satRdays events
 
-## Example
+## Contents
 
-This is a basic example which shows you how to solve a common problem:
-
-``` r
-## basic example code
-```
+Currently a minimal package project, with a few notes about testing the netlify api in a vignette
