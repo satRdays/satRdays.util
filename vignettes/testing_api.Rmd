@@ -1,0 +1,129 @@
+---
+title: "API notes"
+output: html_notebook
+---
+
+```{r}
+library(httr)
+```
+
+## Authentication via Personal key
+
+Get secret key from UI
+The secret key is: `n0ns3ns3l3tt3rsandnumb3rs` (and obviously fake, put yours here)
+
+```{bash}
+curl -H 'User-Agent: testApp (davidrgparr@gmail.com)' https://api.netlify.com/api/v1/sites?access_token=n0ns3ns3l3tt3rsandnumb3rs
+```
+
+
+## Request - response
+
+Get sites data from API with inline personal token URL
+
+```{r get sites simple}
+GET(
+  "https://api.netlify.com/api/v1/sites?access_token=n0ns3ns3l3tt3rsandnumb3rs"
+) -> sites
+```
+
+```{r structure sites}
+str(sites)
+```
+
+```{r content sites}
+content(sites)[[1]]
+```
+
+### Create a site
+
+```{r post simple site with list of args}
+POST("https://api.netlify.com/api/v1/sites?access_token=n0ns3ns3l3tt3rsandnumb3rs",
+     verbose(),
+     encode="json",
+     add_headers(),
+     body = list(name = "satrday-mycity",
+                 custom_domain = "www.mycity2018.daveparr.info")) -> new_site
+```
+
+## Include a repo support?
+
+>You can link a repository while you create a site.
+This is an example payload from such a successful site creation (POST to https://api.netlify.com/api/v1/sites).
+`{"repo":{"provider":"github","id":74777123,"repo":"account_name/repository_name","private":false,"branch":"master","cmd":"jekyll build","dir":"_site/","deploy_key_id":"5a908857a6188f724c466bed"}}`
+Note that there are two ID's there - a github repo ID (which you can get from their API), and a deploy key which you'll need to setup via our API before you'll be able to create a usable repo object.  
+The call to achieve this is a POST to https://api.netlify.com/api/v1/deploy_keys.  This call responds with JSON containing "public_key" and "id" parameters (you'll need to put public_key in place at github), and keep "id" for the repo definition I already quoted.
+Some more details on using our API:
+The best ways to get familiar with our API are NOT currently in our documentation.
+https://open-api.netlify.com has a fairly thorough list of the available calls but is not entirely fleshed out or complete as it has to be manually updated with new calls.  So...
+checking how our UI actually uses the API in your browser dev tools will be the best guide to using every feature you can control with the API.  I realize this is a bit inelegant but it is definitely the best way to figure out what structure a Repo object has or what the normal "order of operations" is in creating a site.
+
+
+```{r post deploy key}
+POST(
+  "https://api.netlify.com/api/v1/deploy_keys?access_token=n0ns3ns3l3tt3rsandnumb3rs",
+  verbose()
+  ) -> deploy_key
+content(deploy_key)
+content(deploy_key)$id ->  netlify_deploy_key_id
+netlify_deploy_key_id
+```
+
+```{r get repo id}
+GET("https://api.github.com/repos/DaveParr/simpletest") -> github_repo
+
+content(github_repo)$id -> github_repo_id
+github_repo_id
+```
+
+
+```{r create site with repo}
+POST(
+  "https://api.netlify.com/api/v1/sites?access_token=n0ns3ns3l3tt3rsandnumb3rs",
+  verbose(data_in = TRUE),
+  body = '{"repo":{"provider":"github","id":147546519,"repo":"DaveParr/simpletest","private":false,"branch":"master","cmd":"hugo","dir":"public","deploy_key_id":"putdeploykeyhere"}}',
+  encode = 'json'
+  ) -> new_site
+```
+
+Creates new site, but no deploy
+
+Postman succeeded with deploying with exact same argument, but only with body set to json. Build failed though, git refs/heads/master does not exist
+
+Also tried this in postman:
+```{json}
+{
+  "build_settings":{
+    "public_repo":true
+  }, 
+  "repo":{
+    "id":147546519, 
+    "provider":"github", 
+    "deploy_key_id":"putdeploykeyhere", 
+    "repo_path":"DaveParr/simpletest", 
+    "repo_branch":"master", "dir":"public", 
+    "cmd":"hugo --minify", 
+    "public_repo":true, 
+    "branch":"master", 
+    "repo_url":"https://github.com/DaveParr/simpletest", 
+    "env":{
+      "HUGO_VERSION":"0.48", "HUGO_ENV":"production", "HUGO_ENABLEGITINFO":"true"
+    }
+  }
+}
+```
+
+Triggered netlify to _try_ to deploy, but failed on accessing repo
+
+```
+5:24:27 PM: Build ready to start
+5:24:28 PM: build-image version: 42bca793ccd33055023c56c4ca8510463a56d317
+5:24:28 PM: buildbot version: 6bab8b64bbd90091082af19fedf16bf73d502e5e
+5:24:28 PM: Fetching cached dependencies
+5:24:28 PM: Failed to fetch cache, continuing with build
+5:24:28 PM: Starting to prepare the repo for build
+5:24:29 PM: git ref refs/heads/master does not exist or you do not have permission
+5:24:29 PM: Failing build: Failed to prepare repo
+5:24:29 PM: failed during stage 'preparing repo': git ref refs/heads/master does not exist
+5:24:29 PM: Finished processing build request in 911.325328ms
+```
